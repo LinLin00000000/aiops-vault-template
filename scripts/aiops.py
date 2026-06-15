@@ -12,12 +12,18 @@ SECRET_PATTERNS = [
 ]
 DEFAULT_EXCLUDES = {".git", "__pycache__", ".pytest_cache", "archive", "evidence/private"}
 
+def looks_like_vault(path: Path) -> bool:
+    return any((path / name).exists() for name in ["resources.md", "resources.example.md", "maintenance-log.jsonl", "maintenance-log.example.jsonl"])
+
 def vault_root() -> Path:
     env = os.environ.get("AIOPS_ROOT")
     if env:
         return Path(env).expanduser().resolve()
+    script_root = Path(__file__).resolve().parents[1]
+    if looks_like_vault(script_root):
+        return script_root
     here = Path.cwd().resolve()
-    if (here / "resources.md").exists() or (here / "maintenance-log.jsonl").exists():
+    if looks_like_vault(here):
         return here
     return (Path.home() / "ai-ops").resolve()
 

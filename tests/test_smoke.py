@@ -25,6 +25,15 @@ class SmokeTests(unittest.TestCase):
             out = subprocess.check_output([sys.executable, str(vault / "scripts" / "aiops.py"), "check"], cwd=vault, text=True)
             self.assertIn("check passed", out)
 
+
+    def test_installed_absolute_script_detects_own_vault(self):
+        with tempfile.TemporaryDirectory() as td:
+            vault = Path(td) / "vault"
+            subprocess.check_call([sys.executable, str(ROOT / "scripts" / "install.py"), "--vault", str(vault), "--agent", "none"])
+            out = subprocess.check_output([sys.executable, str(vault / "scripts" / "aiops.py"), "check"], cwd=ROOT, text=True)
+            self.assertIn("check passed", out)
+            self.assertNotIn("WARN", out)
+
     def test_cli_slice_commands(self):
         env = os.environ.copy()
         env["AIOPS_ROOT"] = str(ROOT)
