@@ -97,14 +97,83 @@ def cmd_resources(args: argparse.Namespace) -> int:
         print(text if args.full else "\n".join(text.splitlines()[:120]))
     return 0
 
+def tokenize_query(query: str) -> list[str]:
+    """Split human search text into stable lookup terms."""
+    return [t.lower() for t in re.split(r"[^\w\u4e00-\u9fff]+", query) if t.strip()]
+
+
+def compact_lookup_text(text: str) -> str:
+    """Normalize text across spaces, hyphens, underscores, punctuation, and case."""
+    return re.sub(r"[^\w\u4e00-\u9fff]+", "", text).lower()
+
+
+def query_score(query: str, text: str) -> tuple[int, int, int]:
+    """Return a sortable relevance score for a human query against text.
+
+    Score shape: (quality, matched_terms, compact_matches)
+    - quality 3: exact substring in the original lowercased text
+    - quality 2: all query terms match, allowing compact matching
+    - quality 1: partial multi-term match, useful for exploratory lookups
+    - quality 0: no meaningful match
+    """
+    q = query.strip().lower()
+    hay = text.lower()
+    if not q:
+        return (0, 0, 0)
+    if q in hay:
+        return (3, len(tokenize_query(query)) or 1, 0)
+    terms = tokenize_query(query)
+    if not terms:
+        return (0, 0, 0)
+    compact_hay = compact_lookup_text(text)
+    matched = 0
+    compact_matches = 0
+    for term in terms:
+        if term in hay:
+            matched += 1
+        elif compact_lookup_text(term) in compact_hay:
+            matched += 1
+            compact_matches += 1
+    if matched == len(terms):
+        return (2, matched, compact_matches)
+    # Allow one noisy/missing term in 3+ term natural-language searches.
+    if len(terms) >= 3 and matched >= max(2, len(terms) - 1):
+        return (1, matched, compact_matches)
+    return (0, matched, compact_matches)
+
+
+def query_matches_text(query: str, text: str) -> bool:
+    return query_score(query, text)[0] > 0
+
+
+def markdown_row_cells(line: str) -> list[str]:
+    if not line.startswith("|"):
+        return []
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def ranked_resource_hits(text: str, query: str) -> list[str]:
+    scored: list[tuple[tuple[int, int, int], tuple[int, int, int], int, str]] = []
+    for i, line in enumerate(text.splitlines(), 1):
+        score = query_score(query, line)
+        if score[0] <= 0:
+            continue
+        cells = markdown_row_cells(line)
+        primary_text = " | ".join(cells[:2]) if cells else line
+        primary_score = query_score(query, primary_text)
+        scored.append((primary_score, score, -i, line))
+    scored.sort(reverse=True)
+    return [line for _, _, _, line in scored]
+
+
 def search_resources(query: str, mode: str) -> int:
     root = vault_root()
     p = resources_path(root)
     if not p.exists():
         print(f"missing: {p}", file=sys.stderr)
         return 2
-    q = query.lower()
-    hits = [line for line in read_text(p).splitlines() if q in line.lower()]
+    resource_text = read_text(p)
+    hits = ranked_resource_hits(resource_text, query)
     print(f"# {mode}: {query}")
     if hits:
         for line in hits[:40]:
@@ -114,9 +183,10 @@ def search_resources(query: str, mode: str) -> int:
     if mode == "service":
         service_dir = root / "services"
         for card in service_dir.glob("*/service-card.md") if service_dir.exists() else []:
-            if q in card.as_posix().lower() or q in read_text(card).lower():
+            card_text = read_text(card)
+            if query_matches_text(query, card.as_posix()) or query_matches_text(query, card_text):
                 print(f"\n# service card: {card.relative_to(root)}")
-                print("\n".join(read_text(card).splitlines()[:120]))
+                print("\n".join(card_text.splitlines()[:120]))
                 break
     return 0 if hits else 1
 
@@ -130,6 +200,8 @@ def cmd_log(args: argparse.Namespace) -> int:
     selected = lines[-args.tail:] if args.tail else lines
     for line in selected:
         obj = json.loads(line)
+        if args.query and not query_matches_text(args.query, json.dumps(obj, ensure_ascii=False)):
+            continue
         if args.summary:
             print(f"{obj.get('ts','?')} [{obj.get('type','?')}/{obj.get('status','?')}] {obj.get('scope','?')}: {obj.get('summary','')}")
         else:
@@ -201,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("resources"); p.add_argument("--section"); p.add_argument("--full", action="store_true"); p.set_defaults(func=cmd_resources)
     p = sub.add_parser("service"); p.add_argument("query"); p.set_defaults(func=lambda a: search_resources(a.query, "service"))
     p = sub.add_parser("host"); p.add_argument("query"); p.set_defaults(func=lambda a: search_resources(a.query, "host"))
-    p = sub.add_parser("log"); p.add_argument("--tail", type=int, default=20); p.add_argument("--summary", action="store_true"); p.set_defaults(func=cmd_log)
+    p = sub.add_parser("log"); p.add_argument("--tail", type=int, default=20); p.add_argument("--summary", action="store_true"); p.add_argument("--query"); p.set_defaults(func=cmd_log)
     p = sub.add_parser("append-log")
     p.add_argument("--actor", default="agent"); p.add_argument("--type", default="maintenance"); p.add_argument("--scope", required=True); p.add_argument("--summary", required=True); p.add_argument("--status", default="done")
     for flag in ["object", "change", "verification", "impact", "followup", "artifact", "tag"]:

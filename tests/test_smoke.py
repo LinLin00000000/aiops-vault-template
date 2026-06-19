@@ -43,5 +43,21 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(out.returncode, 0)
         self.assertIn("example-api", out.stdout)
 
+    def test_cli_fuzzy_service_lookup(self):
+        env = os.environ.copy()
+        env["AIOPS_ROOT"] = str(ROOT)
+        out = subprocess.run([sys.executable, str(ROOT / "scripts" / "aiops.py"), "service", "example api docker"], env=env, text=True, stdout=subprocess.PIPE)
+        self.assertEqual(out.returncode, 0)
+        self.assertIn("example-api", out.stdout)
+        out = subprocess.run([sys.executable, str(ROOT / "scripts" / "aiops.py"), "service", "notesweb systemd"], env=env, text=True, stdout=subprocess.PIPE)
+        self.assertEqual(out.returncode, 0)
+        self.assertIn("notes-web", out.stdout)
+
+    def test_cli_log_query(self):
+        env = os.environ.copy()
+        env["AIOPS_ROOT"] = str(ROOT)
+        out = subprocess.check_output([sys.executable, str(ROOT / "scripts" / "aiops.py"), "log", "--query", "example maintenance", "--summary"], env=env, text=True)
+        self.assertIn("example", out.lower())
+
 if __name__ == "__main__":
     unittest.main()

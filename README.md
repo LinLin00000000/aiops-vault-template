@@ -7,7 +7,7 @@ It is not a CMDB SaaS, not a password manager, and not a deployment platform. It
 ## What this gives you
 
 - **File truth source**: `resources.md` for current state, `maintenance-log.jsonl` for append-only history, optional service cards for local details.
-- **Low-token CLI**: `scripts/aiops.py` extracts only the relevant section, service, host, or log summary before an agent reads full files.
+- **Low-token CLI**: `scripts/aiops.py` extracts only the relevant section, service, host, or log summary before an agent reads full files; service/host/log lookups support lightweight multi-term natural-language matching so operators do not need exact continuous substrings.
 - **Thin skills**: portable agent instructions for reading the vault, respecting secret boundaries, verifying changes, and writing back only the right layer.
 - **Safe defaults**: real secrets stay out of Git; the public repo ships examples only.
 
@@ -74,7 +74,7 @@ Keep these layers separate:
 | `maintenance-log.jsonl` | What changed, why, verification, impact, follow-ups | Current-state truth |
 | `secrets-location.md` | Names and locations of secrets, access/rotation notes | Secret values, tokens, private keys, cookies, recovery codes |
 | `services/<name>/service-card.md` | Detailed per-service runbooks when `resources.md` would get too large | Global inventory of unrelated services |
-| `scripts/aiops.py` | Cheap slices of the vault for humans and agents | A second database of facts |
+| `scripts/aiops.py` | Cheap slices of the vault for humans and agents, including lightweight natural-language lookup for service/host/log queries | A second database of facts |
 | Skills | When and how agents should read, act, verify, and write back | Private inventories or drifting service facts |
 
 ## Core commands
@@ -84,9 +84,9 @@ From the vault root or with `AIOPS_ROOT=/path/to/vault`:
 ```bash
 python3 scripts/aiops.py index
 python3 scripts/aiops.py resources --section "Service Inventory"
-python3 scripts/aiops.py service example-api
+python3 scripts/aiops.py service "example api docker"
 python3 scripts/aiops.py host demo-vps
-python3 scripts/aiops.py log --tail 20 --summary
+python3 scripts/aiops.py log --query "example maintenance" --tail 20 --summary
 python3 scripts/aiops.py check
 ```
 
