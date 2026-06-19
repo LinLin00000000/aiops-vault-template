@@ -57,8 +57,9 @@ Do not infer current infrastructure from this skill. Read the vault and inspect 
    - important history -> one appended `maintenance-log.jsonl` object;
    - secret locations -> `secrets-location.md` without values;
    - service-local details -> service README/card.
-9. Run `python3 "$AIOPS_ROOT/scripts/aiops.py" check` after vault changes.
-10. Report changed files, commands, verification, skipped/blocked items, and follow-ups.
+9. If the change improves reusable AIOps workflow/tooling rather than only private local facts, sync the generic part to the template repo at `~/projects/aiops-vault-template`, run its tests/checks, then commit and push so downstream AIOS Kit consumers receive the improvement. Never copy private resources, logs, or secrets into the public template.
+10. Run `python3 "$AIOPS_ROOT/scripts/aiops.py" check` after vault changes.
+11. Report changed files, commands, verification, skipped/blocked items, and follow-ups.
 
 ## Write-back rules
 
